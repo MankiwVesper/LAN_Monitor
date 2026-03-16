@@ -1,0 +1,1351 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>日志分析</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        margin: 0;
+        background: #f5f7fa;
+        font-family: Arial, sans-serif;
+        color: #1f2937;
+      }
+
+      .page {
+        padding: 16px 18px 18px;
+        box-sizing: border-box;
+        height: 100vh;
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1e293b;
+      }
+
+      .hint {
+        font-size: 13px;
+        color: #64748b;
+        text-align: right;
+      }
+
+      .main {
+        display: flex;
+        gap: 16px;
+        align-items: stretch;
+        flex:1;
+        min-height:0;
+        overflow:hidden;
+      }
+
+      .sidebar {
+        width: 320px;
+        flex: 0 0 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height:0;
+        overflow:auto;
+      }
+
+      .content {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        overflow:auto;
+      }
+
+      .panel {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        box-sizing: border-box;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+
+      .view-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: nowrap;
+      }
+
+      .view-row .section-title {
+        margin: 0;
+        display: block;
+        align-items: center;
+        line-height: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+      }
+
+      .view-row .view-switch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+      }
+
+      .section-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #334155;
+        margin: 0 0 12px 0;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 14px;
+      }
+
+      .field-group:last-child {
+        margin-bottom: 0;
+      }
+
+      .field-group > label {
+        margin-bottom: 6px;
+        font-size: 15px;
+        color: #334155;
+        font-weight: 600;
+      }
+
+      .field-group input[type="text"] {
+        height: 38px;
+        padding: 0 10px;
+        box-sizing: border-box;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        font-size: 14px;
+        color: #1f2937;
+      }
+
+      .file-picker {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+      }
+
+      .file-picker input[type="file"] {
+        display: none;
+      }
+
+      .file-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 36px;
+        min-width: 88px;
+        flex:0 0 auto;
+        padding: 0 5px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2937;
+        cursor: pointer;
+        box-sizing: border-box;
+        white-space: nowrap;
+      }
+
+      .file-btn:hover {
+        background: #f8fafc;
+      }
+
+      .file-name {
+        flex:1 1 auto;
+        min-width:0;
+        display: flex;
+        align-items: center;
+        height: 36px;
+        padding: 0 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        font-size: 14px;
+        color: #64748b;
+        box-sizing: border-box;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .recommend {
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #64748b;
+      }
+
+      .view-switch {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .view-switch .btn {
+        letter-spacing: 1px;
+      }
+
+      .btn {
+        min-height: 36px;
+        line-height: 36px;
+        padding: 0 14px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        background: #FF7F50;
+        color: #ffffff;
+        transition: opacity 0.15s ease;
+      }
+
+      .btn:hover {
+        opacity: 0.92;
+      }
+
+      .btn.active {
+        background: #20B2AA;
+        color: #ffffff;
+      }
+
+      .btn.primary {
+        background: #20B2AA;
+        color: #ffffff;
+      }
+
+      .btn.export {
+        background: #FF7F50;
+        color: #ffffff;
+      }
+
+      .btn.full {
+        width: 100%;
+      }
+
+      .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .zoom-in-btn{
+        background:#2563EB;
+        color:#FFFFFF;
+      }
+
+      .zoom-out-btn{
+        background:#2563EB;
+        color:#FFFFFF;
+      }
+
+      .zoom-reset-btn{
+        background:#2563EB;
+        color:#FFFFFF;
+      }
+
+      .zoom-in-btn:hover{
+        background:#1D4ED8;
+      }
+
+      .zoom-out-btn:hover{
+          background:#1D4ED8;
+      }
+
+      .zoom-reset-btn:hover{
+          background:#1D4ED8;
+      }
+
+      .device-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 300px;
+        overflow: auto;
+        padding-right: 0px;
+      }
+
+      .device-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #1f2937;
+        user-select: none;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 8px 10px;
+      }
+
+      .device-item input {
+        margin: 0;
+      }
+
+      .action-buttons {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        flex-wrap: nowrap;
+      }
+
+      .action-buttons .btn {
+        flex: 1;
+        min-width: 120px;
+        letter-spacing: 1px;
+      }
+
+      .status {
+        min-height: 50px;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 5px 5px;
+        padding-left: 16px;
+        padding-right: 16px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        box-sizing: border-box;
+        line-height: 1.45;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+      }
+
+      .status.ok {
+        color: #166534;
+        background: #dcfce7;
+        border-color: #bbf7d0;
+      }
+
+      .status.error {
+        color: #991b1b;
+        background: #fee2e2;
+        border-color: #fecaca;
+      }
+
+      .status.info {
+        color: #1d4ed8;
+        background: #dbeafe;
+        border-color: #bfdbfe;
+      }
+
+      .chart-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 720px;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+        min-height: 24px;
+        justify-content:center;
+        align-items:center;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #334155;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 4px 10px;
+      }
+
+      .legend-line {
+        display: inline-block;
+        width: 20px;
+        height: 3px;
+        border-radius: 2px;
+      }
+
+      .chart-wrap {
+        position: relative;
+        flex: 1;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        min-height: 620px;
+      }
+
+      #chartSvg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: #ffffff;
+      }
+
+      .empty-hint {
+        display: block;
+        padding: 80px 20px;
+        text-align: center;
+        color: #64748b;
+        font-size: 15px;
+      }
+
+      .tooltip {
+        position: absolute;
+        display: none;
+        white-space: pre-line;
+        pointer-events: none;
+        background: rgba(15, 23, 42, 0.92);
+        color: #ffffff;
+        font-size: 12px;
+        line-height: 1.45;
+        padding: 8px 10px;
+        border-radius: 8px;
+        max-width: 180px;
+        z-index: 10;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+      }
+
+
+
+      .zoom-buttons {
+        display: flex;
+        gap: 10px;
+        flex-wrap: nowrap;
+        margin-top: 10px;
+      }
+
+      .zoom-buttons .btn {
+        flex: 1;
+        min-width: 90px;
+        letter-spacing: 1px;
+      }
+
+      .legend-item {
+        cursor: pointer;
+        user-select: none;
+        transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .legend-item:hover {
+        background: #eef2f7;
+      }
+
+      .legend-item.inactive {
+        opacity: 0.45;
+      }
+
+      .zoom-rail {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 12;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 6px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+      }
+
+      .zoom-rail-btn {
+        width: 30px;
+        height: 30px;
+        border: none;
+        border-radius: 8px;
+        background: #2563eb;
+        color: #ffffff;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 30px;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .zoom-rail-btn:hover {
+        background: #1d4ed8;
+      }
+
+      .zoom-rail-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .zoom-rail-slider {
+        -webkit-appearance: slider-vertical;
+        writing-mode: bt-lr;
+        width: 30px;
+        height: 180px;
+        margin: 0;
+        cursor: pointer;
+      }
+
+
+      .chart-wrap.pan-enabled {
+        cursor: grab;
+      }
+
+      .chart-wrap.panning {
+        cursor: grabbing;
+        user-select: none;
+      }
+
+      @media (max-width: 1100px) {
+        .main {
+          flex-direction: column;
+        }
+
+        .sidebar {
+          width: auto;
+          flex: 1 1 auto;
+          gap:14px;
+        }
+
+        .chart-panel {
+          min-height: 620px;
+        }
+
+        .chart-wrap {
+          min-height: 520px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="page">
+      <div class="toolbar">
+        <div class="title">日志分析</div>
+      </div>
+
+      <div class="main">
+        <div class="sidebar">
+          <div class="panel">
+            <div class="field-group">
+              <label for="csvFile">日志文件</label>
+              <div class="file-picker">
+                  <div class="file-name" id="fileName">未选择任何文件</div>
+                  <label for="csvFile" class="file-btn">选择文件</label>
+                  <input type="file" id="csvFile" accept=".csv">
+              </div>
+              <div class="recommend">注：先复制日志文件，再选择日志副本进行分析</div>
+            </div>
+
+            <div class="field-group">
+              <label for="startTime">开始时间</label>
+              <input
+                type="datetime-local"
+                id="startTime"
+                step="1"
+              />
+            </div>
+
+            <div class="field-group">
+              <label for="endTime">结束时间</label>
+              <input
+                type="datetime-local"
+                id="endTime"
+                step="1"
+              />
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="view-row">
+              <div class="section-title">链路视图</div>
+              <div class="view-switch">
+                <button class="btn active" id="btnNormal" type="button">
+                  有线链路
+                </button>
+                <button class="btn" id="btnWireless" type="button">
+                  无线链路
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="section-title">选择链路</div>
+            <div class="device-list" id="deviceList"></div>
+          </div>
+
+          <div class="panel">
+            <div class="action-buttons">
+              <button class="btn primary" id="analyzeBtn" type="button">
+                开始分析
+              </button>
+              <button class="btn export" id="exportBtn" type="button" disabled>
+                导出图片
+              </button>
+            </div>
+          </div>
+
+          <div class="status" id="status"></div>
+        </div>
+
+        <div class="content">
+          <div class="panel chart-panel">
+            <div class="legend" id="legend"></div>
+
+            <div class="chart-wrap">
+              <div class="empty-hint" id="emptyHint">
+                请选择日志文件并输入时间范围后开始分析。
+              </div>
+              <svg
+                id="chartSvg"
+                viewBox="0 0 1200 720"
+                xmlns="http://www.w3.org/2000/svg"
+              ></svg>
+              <div class="zoom-rail" id="zoomRail">
+                <button class="zoom-rail-btn" id="zoomPlusBtn" type="button">+</button>
+                <input class="zoom-rail-slider" id="zoomSlider" type="range" min="0" max="10" step="1" value="0" orient="vertical" />
+                <button class="zoom-rail-btn" id="zoomMinusBtn" type="button">−</button>
+              </div>
+              <div class="tooltip" id="tooltip"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+          const groups = {{ groups_json | safe }};
+          const linkLabelMap = {{ link_label_map_json | safe }};
+          const maxFileSizeBytes = {{ max_file_size_mb }} * 1024 * 1024;
+          const statusEl = document.getElementById('status');
+          const deviceListEl = document.getElementById('deviceList');
+          const legendEl = document.getElementById('legend');
+          const emptyHintEl = document.getElementById('emptyHint');
+          const exportBtn = document.getElementById('exportBtn');
+          const zoomPlusBtn = document.getElementById('zoomPlusBtn');
+          const zoomMinusBtn = document.getElementById('zoomMinusBtn');
+          const zoomSlider = document.getElementById('zoomSlider');
+          const svg = document.getElementById('chartSvg');
+          const chartWrap = svg ? svg.closest('.chart-wrap') : null;
+          const tooltip = document.getElementById('tooltip');
+          const csvFileInput = document.getElementById('csvFile');
+          const fileNameEl = document.getElementById('fileName');
+          const startTimeInput = document.getElementById('startTime');
+          const endTimeInput = document.getElementById('endTime');
+          const btnNormal = document.getElementById('btnNormal');
+          const btnWireless = document.getElementById('btnWireless');
+          const analyzeBtn = document.getElementById('analyzeBtn');
+
+          let currentView = 'normal_group';
+          let latestResult = null;
+          let chartState = {
+              visibleByDevice: {},
+              fullStart: null,
+              fullEnd: null,
+              zoomStart: null,
+              zoomEnd: null,
+              plotLeft: null,
+              plotRight: null,
+              plotTop: null,
+              plotBottom: null,
+              plotWidth: null,
+              plotHeight: null,
+              lastMinY: null,
+              lastMaxY: null,
+          };
+          const palette = ['#0EA5A4','#2563EB','#E11D48','#F59E0B','#7C3AED','#16A34A','#DC2626','#0284C7'];
+          const ZOOM_MAX_LEVEL = 10;
+          let zoomLevel = 0;
+          let panState = {
+              dragging: false,
+              lastClientX: 0,
+          };
+
+          function setStatus(text, type){
+              statusEl.textContent = text || '';
+              statusEl.className = 'status ' + (text ? (type || 'ok') : '');
+          }
+
+          function setView(viewType){
+              currentView = viewType;
+              btnNormal.classList.toggle('active', viewType === 'normal_group');
+              btnWireless.classList.toggle('active', viewType === 'wireless_group');
+              renderDeviceChoices();
+          }
+
+          function getCurrentDevices(){
+              return groups[currentView] || [];
+          }
+
+          function getDeviceLabel(name){
+              return linkLabelMap[name] || name;
+          }
+
+          function syncZoomRail(){
+              if (zoomSlider) {
+                  zoomSlider.value = String(zoomLevel);
+              }
+              const atMin = zoomLevel <= 0;
+              const atMax = zoomLevel >= ZOOM_MAX_LEVEL;
+              if (zoomPlusBtn) zoomPlusBtn.disabled = atMax;
+              if (zoomMinusBtn) zoomMinusBtn.disabled = atMin;
+              if (chartWrap) chartWrap.classList.toggle('pan-enabled', !!latestResult && zoomLevel > 0);
+          }
+
+          function stopPan(){
+              panState.dragging = false;
+              if (chartWrap) chartWrap.classList.remove('panning');
+          }
+
+          function panXAxisByPixels(deltaPixels){
+              if (!latestResult || zoomLevel <= 0) return;
+              const plotWidth = chartState.plotWidth;
+              const windowStart = chartState.zoomStart ?? chartState.fullStart;
+              const windowEnd = chartState.zoomEnd ?? chartState.fullEnd;
+              if (!plotWidth || !windowStart || !windowEnd) return;
+              const windowSpan = windowEnd - windowStart;
+              if (windowSpan <= 0) return;
+
+              const deltaTime = -(deltaPixels / plotWidth) * windowSpan;
+              let newStart = windowStart + deltaTime;
+              let newEnd = windowEnd + deltaTime;
+
+              if (newStart < chartState.fullStart) {
+                  newEnd += (chartState.fullStart - newStart);
+                  newStart = chartState.fullStart;
+              }
+              if (newEnd > chartState.fullEnd) {
+                  newStart -= (newEnd - chartState.fullEnd);
+                  newEnd = chartState.fullEnd;
+              }
+
+              chartState.zoomStart = Math.max(chartState.fullStart, Math.round(newStart));
+              chartState.zoomEnd = Math.min(chartState.fullEnd, Math.round(newEnd));
+              renderCurrentChart();
+          }
+
+          function seriesLabel(series){
+              return series.link_name || getDeviceLabel(series.device_name || '');
+          }
+
+          function toDateTimeLocalValue(value){
+              if (!value) return '';
+              return value.replace(' ', 'T');
+          }
+
+          function fromDateTimeLocalValue(value){
+              if (!value) return '';
+              const normalized = value.replace('T', ' ');
+              return normalized.length === 16 ? normalized + ':00' : normalized;
+          }
+
+          function renderDeviceChoices(){
+              const devices = getCurrentDevices();
+              deviceListEl.innerHTML = '';
+              devices.forEach(function(name, index){
+                  const item = document.createElement('label');
+                  item.className = 'device-item';
+                  const checkbox = document.createElement('input');
+                  checkbox.type = 'checkbox';
+                  checkbox.value = name;
+                  checkbox.checked = currentView === 'normal_group' ? true : index === 0;
+                  item.appendChild(checkbox);
+                  item.appendChild(document.createTextNode(getDeviceLabel(name)));
+                  deviceListEl.appendChild(item);
+              });
+          }
+
+          function getSelectedDevices(){
+              return Array.from(deviceListEl.querySelectorAll('input[type="checkbox"]:checked')).map(function(el){ return el.value; });
+          }
+
+          function setChartButtonsDisabled(disabled){
+              exportBtn.disabled = disabled;
+              if (zoomPlusBtn) zoomPlusBtn.disabled = disabled;
+              if (zoomMinusBtn) zoomMinusBtn.disabled = disabled;
+              if (zoomSlider) zoomSlider.disabled = disabled;
+              if (!disabled) syncZoomRail();
+          }
+
+          function resetChartState(){
+              chartState = {
+                  visibleByDevice: {},
+                  fullStart: null,
+                  fullEnd: null,
+                  zoomStart: null,
+                  zoomEnd: null,
+                  plotLeft: null,
+                  plotRight: null,
+                  plotTop: null,
+                  plotBottom: null,
+                  plotWidth: null,
+                  plotHeight: null,
+                  lastMinY: null,
+                  lastMaxY: null,
+              };
+              zoomLevel = 0;
+              panState.dragging = false;
+          }
+
+          function clearChart(){
+              while (svg.firstChild) svg.removeChild(svg.firstChild);
+              legendEl.innerHTML = '';
+              setChartButtonsDisabled(true);
+              latestResult = null;
+              resetChartState();
+              emptyHintEl.style.display = 'block';
+              tooltip.style.display = 'none';
+          }
+
+          function clearSvgOnly(){
+              while (svg.firstChild) svg.removeChild(svg.firstChild);
+              legendEl.innerHTML = '';
+              tooltip.style.display = 'none';
+          }
+
+          function createSvgEl(tag, attrs){
+              const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+              Object.keys(attrs || {}).forEach(function(key){ el.setAttribute(key, attrs[key]); });
+              return el;
+          }
+
+          function buildPath(points, xScale, yScale, windowStart, windowEnd){
+              let path = '';
+              let penDown = false;
+              points.forEach(function(pt){
+                  if (pt.ts < windowStart || pt.ts > windowEnd || pt.value === null || pt.value === undefined || Number.isNaN(pt.value)) {
+                      penDown = false;
+                      return;
+                  }
+                  const x = xScale(pt.ts);
+                  const y = yScale(pt.value);
+                  if (!penDown) {
+                      path += 'M ' + x + ' ' + y + ' ';
+                      penDown = true;
+                  } else {
+                      path += 'L ' + x + ' ' + y + ' ';
+                  }
+              });
+              return path.trim();
+          }
+
+          function formatValue(v){
+              return typeof v === 'number' ? v.toFixed(2) + ' ms' : '--';
+          }
+
+          function niceStep(span){
+              if (span <= 0) return 0.1;
+              const raw = span / 6;
+              const power = Math.pow(10, Math.floor(Math.log10(raw)));
+              const norm = raw / power;
+              let step;
+              if (norm <= 1) step = 1;
+              else if (norm <= 2) step = 2;
+              else if (norm <= 2.5) step = 2.5;
+              else if (norm <= 5) step = 5;
+              else step = 10;
+              return step * power;
+          }
+
+          function formatTimeTickParts(ts){
+              const d = new Date(ts);
+              const yyyy = d.getFullYear();
+              const MM = String(d.getMonth() + 1).padStart(2,'0');
+              const dd = String(d.getDate()).padStart(2,'0');
+              const hh = String(d.getHours()).padStart(2,'0');
+              const mm = String(d.getMinutes()).padStart(2,'0');
+              const ss = String(d.getSeconds()).padStart(2,'0');
+              return {
+                  time: hh + ':' + mm + ':' + ss,
+                  date: yyyy + '-' + MM + '-' + dd
+              };
+          }
+
+          function initializeChartState(result){
+              const visibleByDevice = {};
+              result.series.forEach(function(series){
+                  visibleByDevice[series.device_name] = true;
+              });
+              chartState.visibleByDevice = visibleByDevice;
+              chartState.fullStart = new Date(result.start_time).getTime();
+              chartState.fullEnd = new Date(result.end_time).getTime();
+              chartState.zoomStart = chartState.fullStart;
+              chartState.zoomEnd = chartState.fullEnd;
+              zoomLevel = 0;
+          }
+
+          function renderCurrentChart(){
+              if (!latestResult) return;
+              clearSvgOnly();
+              emptyHintEl.style.display = 'none';
+              setChartButtonsDisabled(false);
+
+              const width = 1200, height = 720;
+              const margin = { top: 30, right: 28, bottom: 76, left: 76 };
+              const plotW = width - margin.left - margin.right;
+              const plotH = height - margin.top - margin.bottom;
+              const windowStart = chartState.zoomStart ?? chartState.fullStart;
+              const windowEnd = chartState.zoomEnd ?? chartState.fullEnd;
+              chartState.plotLeft = margin.left;
+              chartState.plotRight = margin.left + plotW;
+              chartState.plotTop = margin.top;
+              chartState.plotBottom = margin.top + plotH;
+              chartState.plotWidth = plotW;
+              chartState.plotHeight = plotH;
+
+              const visibleSeries = latestResult.series.filter(function(series){
+                  return chartState.visibleByDevice[series.device_name] !== false;
+              });
+
+              const visibleWindowValidPoints = [];
+              const allWindowValidPoints = [];
+
+              latestResult.series.forEach(function(series){
+                  const visible = chartState.visibleByDevice[series.device_name] !== false;
+                  series.points.forEach(function(pt){
+                      const ts = new Date(pt[0]).getTime();
+                      const value = pt[1] === null ? null : Number(pt[1]);
+                      if (ts < windowStart || ts > windowEnd) return;
+                      if (typeof value !== 'number' || Number.isNaN(value)) return;
+                      allWindowValidPoints.push(value);
+                      if (visible) {
+                          visibleWindowValidPoints.push(value);
+                      }
+                  });
+              });
+
+              let minY = null;
+              let maxY = null;
+
+              if (visibleWindowValidPoints.length) {
+                  minY = Math.min.apply(null, visibleWindowValidPoints);
+                  maxY = Math.max.apply(null, visibleWindowValidPoints);
+              } else if (chartState.lastMinY !== null && chartState.lastMaxY !== null) {
+                  minY = chartState.lastMinY;
+                  maxY = chartState.lastMaxY;
+              } else if (allWindowValidPoints.length) {
+                  minY = Math.min.apply(null, allWindowValidPoints);
+                  maxY = Math.max.apply(null, allWindowValidPoints);
+              } else {
+                  minY = 0;
+                  maxY = 1;
+              }
+
+              if (minY === maxY) {
+                  minY -= 1;
+                  maxY += 1;
+              }
+              const yPad = (maxY - minY) * 0.1;
+              minY = Math.max(0, minY - yPad);
+              maxY = maxY + yPad;
+              chartState.lastMinY = minY;
+              chartState.lastMaxY = maxY;
+
+              const xScale = function(ts){
+                  return margin.left + ((ts - windowStart) / Math.max(1, windowEnd - windowStart)) * plotW;
+              };
+              const yScale = function(v){
+                  return margin.top + (1 - ((v - minY) / Math.max(1e-9, maxY - minY))) * plotH;
+              };
+
+              svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+              svg.appendChild(createSvgEl('rect', { x: 0, y: 0, width: width, height: height, fill: '#ffffff' }));
+              svg.appendChild(createSvgEl('rect', { x: margin.left, y: margin.top, width: plotW, height: plotH, fill: '#ffffff', stroke: '#E2E8F0' }));
+
+              const yStep = niceStep(maxY - minY);
+              const yStart = Math.floor(minY / yStep) * yStep;
+              for (let y = yStart; y <= maxY + yStep; y += yStep) {
+                  const yPos = yScale(y);
+                  if (yPos < margin.top - 1 || yPos > margin.top + plotH + 1) continue;
+                  svg.appendChild(createSvgEl('line', { x1: margin.left, y1: yPos, x2: margin.left + plotW, y2: yPos, stroke: '#E5E7EB', 'stroke-width': 1 }));
+                  const label = createSvgEl('text', { x: margin.left - 10, y: yPos + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#64748B' });
+                  let decimals = 0;
+                  if (yStep < 1) {
+                    decimals = Math.min(3, Math.max(1, Math.ceil(-Math.log10(yStep))));
+                  }
+                
+                  label.textContent = y.toFixed(decimals);
+                  svg.appendChild(label);
+              }
+
+              const xTickCount = 6;
+              for (let i = 0; i <= xTickCount; i++) {
+                  const ts = windowStart + ((windowEnd - windowStart) * i / xTickCount);
+                  const xPos = xScale(ts);
+                  const tickParts = formatTimeTickParts(ts);
+                  svg.appendChild(createSvgEl('line', { x1: xPos, y1: margin.top, x2: xPos, y2: margin.top + plotH, stroke: '#EEF2F7', 'stroke-width': 1 }));
+                  const label = createSvgEl('text', { x: xPos, y: margin.top + plotH + 18, 'text-anchor': 'middle', 'font-size': 12, fill: '#64748B' });
+                  const timeSpan = createSvgEl('tspan', { x: xPos, dy: 0 });
+                  timeSpan.textContent = tickParts.time;
+                  label.appendChild(timeSpan);
+                  const dateSpan = createSvgEl('tspan', { x: xPos, dy: 15 });
+                  dateSpan.textContent = tickParts.date;
+                  label.appendChild(dateSpan);
+                  svg.appendChild(label);
+              }
+
+              const title = createSvgEl('text', { x: width / 2, y: 20, 'text-anchor': 'middle', 'font-size': 18, fill: '#1F2937' });
+              title.textContent = '主机之间网络延时';
+              svg.appendChild(title);
+
+              const yAxisTitle = createSvgEl('text', { x: 22, y: height / 2, transform: 'rotate(-90 22 ' + (height / 2) + ')', 'text-anchor': 'middle', 'font-size': 13, fill: '#475569' });
+              yAxisTitle.textContent = '延时 (ms)';
+              svg.appendChild(yAxisTitle);
+
+              const xAxisTitle = createSvgEl('text', { x: margin.left + plotW / 2, y: height - 10, 'text-anchor': 'middle', 'font-size': 13, fill: '#475569' });
+              xAxisTitle.textContent = '时间';
+              svg.appendChild(xAxisTitle);
+
+              const hoverLine = createSvgEl('line', { x1: 0, y1: margin.top, x2: 0, y2: margin.top + plotH, stroke: '#94A3B8', 'stroke-dasharray': '4,4', 'stroke-width': 1, visibility: 'hidden' });
+              svg.appendChild(hoverLine);
+
+              const interactivePoints = [];
+
+              latestResult.series.forEach(function(series, idx){
+                  const color = palette[idx % palette.length];
+                  const visible = chartState.visibleByDevice[series.device_name] !== false;
+                  const points = series.points.map(function(pt){
+                      return { ts: new Date(pt[0]).getTime(), time: pt[0], value: pt[1] === null ? null : Number(pt[1]) };
+                  });
+
+                  const legendItem = document.createElement('div');
+                  legendItem.className = 'legend-item' + (visible ? '' : ' inactive');
+                  legendItem.innerHTML = '<span class="legend-line" style="background:' + color + '"></span><span>' + seriesLabel(series) + '</span>';
+                  legendItem.addEventListener('click', function(){
+                      chartState.visibleByDevice[series.device_name] = !visible;
+                      renderCurrentChart();
+                  });
+                  legendEl.appendChild(legendItem);
+
+                  if (!visible) {
+                      return;
+                  }
+
+                  const pathData = buildPath(points, xScale, yScale, windowStart, windowEnd);
+                  if (pathData) {
+                      svg.appendChild(createSvgEl('path', {
+                          d: pathData, fill: 'none', stroke: color, 'stroke-width': 2.2,
+                          'stroke-linejoin': 'round', 'stroke-linecap': 'round'
+                      }));
+                  }
+
+                  points.forEach(function(pt){
+                      if (pt.ts < windowStart || pt.ts > windowEnd) return;
+                      if (pt.value === null || pt.value === undefined || Number.isNaN(pt.value)) return;
+                      interactivePoints.push({
+                          device: seriesLabel(series),
+                          time: pt.time,
+                          value: pt.value,
+                          x: xScale(pt.ts),
+                          y: yScale(pt.value),
+                          color: color
+                      });
+                  });
+              });
+
+              interactivePoints.sort(function(a,b){ return a.x - b.x; });
+
+              svg.onmousemove = function(ev){
+                  if (panState.dragging) {
+                      tooltip.style.display = 'none';
+                      hoverLine.setAttribute('visibility', 'hidden');
+                      return;
+                  }
+                  if (!interactivePoints.length) return;
+                  const rect = svg.getBoundingClientRect();
+                  const scaleX = width / rect.width;
+                  const scaleY = height / rect.height;
+                  const mx = (ev.clientX - rect.left) * scaleX;
+                  const my = (ev.clientY - rect.top) * scaleY;
+                  if (mx < margin.left || mx > margin.left + plotW || my < margin.top || my > margin.top + plotH) {
+                      hoverLine.setAttribute('visibility', 'hidden');
+                      tooltip.style.display = 'none';
+                      return;
+                  }
+                  let nearest = interactivePoints[0];
+                  let minDist = Math.abs(mx - nearest.x);
+                  for (let i = 1; i < interactivePoints.length; i++) {
+                      const dist = Math.abs(mx - interactivePoints[i].x);
+                      if (dist < minDist) {
+                          minDist = dist;
+                          nearest = interactivePoints[i];
+                      }
+                  }
+                  hoverLine.setAttribute('x1', nearest.x);
+                  hoverLine.setAttribute('x2', nearest.x);
+                  hoverLine.setAttribute('visibility', 'visible');
+                  tooltip.style.display = 'block';
+                  tooltip.textContent = nearest.device + '\n' + nearest.time + '\n' + formatValue(nearest.value);
+                  tooltip.style.left = Math.min(ev.clientX - rect.left + 18, rect.width - 180) + 'px';
+                  tooltip.style.top = Math.max(ev.clientY - rect.top - 10, 10) + 'px';
+              };
+
+              svg.onmouseleave = function(){
+                  hoverLine.setAttribute('visibility', 'hidden');
+                  tooltip.style.display = 'none';
+              };
+
+              if (!visibleSeries.length) {
+                  setStatus('当前无可显示曲线。', 'info');
+              } else if (!visibleWindowValidPoints.length) {
+                  setStatus('当前时间窗口内没有可用于绘图的数据。', 'error');
+              } else {
+                  setStatus('分析完成。', 'ok');
+              }
+          }
+
+          function drawChart(result){
+              latestResult = result;
+              initializeChartState(result);
+              renderCurrentChart();
+          }
+
+          function updateZoomButtons(){
+              if (!latestResult) {
+                  if (zoomPlusBtn) zoomPlusBtn.disabled = true;
+                  if (zoomMinusBtn) zoomMinusBtn.disabled = true;
+                  if (zoomSlider) zoomSlider.disabled = true;
+                  return;
+              }
+              if (zoomSlider) zoomSlider.disabled = false;
+              syncZoomRail();
+          }
+
+          function applyZoomLevel(level){
+              if (!latestResult || chartState.fullStart === null || chartState.fullEnd === null) return;
+
+              zoomLevel = Math.max(0, Math.min(ZOOM_MAX_LEVEL, level));
+
+              const fullSpan = chartState.fullEnd - chartState.fullStart;
+              if (zoomLevel === 0) {
+                  chartState.zoomStart = chartState.fullStart;
+                  chartState.zoomEnd = chartState.fullEnd;
+                  renderCurrentChart();
+                  syncZoomRail();
+                  return;
+              }
+
+              const factor = Math.pow(0.8, zoomLevel);
+              const span = Math.max(1000, fullSpan * factor);
+              const center = (chartState.zoomStart + chartState.zoomEnd) / 2 || ((chartState.fullStart + chartState.fullEnd) / 2);
+
+              let newStart = center - span / 2;
+              let newEnd = center + span / 2;
+
+              if (newStart < chartState.fullStart) {
+                  newEnd += (chartState.fullStart - newStart);
+                  newStart = chartState.fullStart;
+              }
+              if (newEnd > chartState.fullEnd) {
+                  newStart -= (newEnd - chartState.fullEnd);
+                  newEnd = chartState.fullEnd;
+              }
+
+              chartState.zoomStart = Math.max(chartState.fullStart, Math.round(newStart));
+              chartState.zoomEnd = Math.min(chartState.fullEnd, Math.round(newEnd));
+              renderCurrentChart();
+              syncZoomRail();
+          }
+
+          function zoomXAxis(direction){
+              if (direction > 1) {
+                  applyZoomLevel(zoomLevel - 1);
+              } else {
+                  applyZoomLevel(zoomLevel + 1);
+              }
+          }
+
+          function resetZoom(){
+              applyZoomLevel(0);
+          }
+
+          async function inspectSelectedFile(){
+              const file = csvFileInput.files && csvFileInput.files[0];
+              if (!file) {
+                  startTimeInput.value = '';
+                  endTimeInput.value = '';
+                  return;
+              }
+            
+              setStatus('正在自动获取日志中的起止时间...', 'info');
+            
+              const fd = new FormData();
+              fd.append('file', file);
+              try {
+                  const resp = await fetch('/api/history-analysis/inspect', { method: 'POST', body: fd });
+                  const data = await resp.json();
+                  if (!resp.ok || !data.ok) {
+                      setStatus(data.message || '日志文件解析失败。', 'error');
+                      startTimeInput.value = '';
+                      endTimeInput.value = '';
+                      return;
+                  }
+                  startTimeInput.value = toDateTimeLocalValue(data.start_time || '');
+                  endTimeInput.value = toDateTimeLocalValue(data.end_time || '');
+                  setStatus('已自动读取日志文件时间范围。', 'ok');
+              } catch (err) {
+                  setStatus('日志文件解析失败：' + err, 'error');
+                  startTimeInput.value = '';
+                  endTimeInput.value = '';
+              }
+          }
+
+          async function analyze(){
+              const file = csvFileInput.files && csvFileInput.files[0];
+              if (!file) {
+                  setStatus('请选择需要分析的 CSV 文件。', 'error');
+                  return;
+              }
+              if (!file.name.toLowerCase().endsWith('.csv')) {
+                  setStatus('文件类型错误，请重新选择 CSV 文件。', 'error');
+                  return;
+              }
+              if (file.size > maxFileSizeBytes) {
+                  setStatus('所选文件大小超过允许上限，请重新选择。', 'error');
+                  return;
+              }
+              const selectedDevices = getSelectedDevices();
+              if (!selectedDevices.length) {
+                  setStatus('请至少选择一条链路进行绘图。', 'error');
+                  return;
+              }
+              const fd = new FormData();
+              fd.append('file', file);
+              fd.append('start_time', fromDateTimeLocalValue(startTimeInput.value.trim()));
+              fd.append('end_time', fromDateTimeLocalValue(endTimeInput.value.trim()));
+              fd.append('view_type', currentView);
+              fd.append('selected_devices', JSON.stringify(selectedDevices));
+
+              analyzeBtn.disabled = true;
+              setStatus('正在分析，请稍候...', 'info');
+              try {
+                  const resp = await fetch('/api/history-analysis/analyze', { method:'POST', body:fd });
+                  const data = await resp.json();
+                  if (!resp.ok || !data.ok) {
+                      setStatus(data.message || '分析失败。', 'error');
+                      clearChart();
+                      emptyHintEl.textContent = data.message || '分析失败。';
+                      return;
+                  }
+                  drawChart(data);
+                  updateZoomButtons();
+              } catch (err) {
+                  const msg = String(err || '');
+                  if (msg.includes('Failed to fetch')) {
+                    setStatus('日志解析失败，请选择日志副本进行分析！', 'error');
+                    startTimeInput.value = '';
+                    endTimeInput.value = '';
+                    emptyHintEl.textContent = '日志解析失败，请选择日志副本进行分析！';
+                  } else {
+                    setStatus('日志解析失败：' + err, 'error');
+                    emptyHintEl.textContent = '日志解析失败：' + err;
+                  }
+                  clearChart();
+              } finally {
+                  analyzeBtn.disabled = false;
+              }
+          }
+
+          async function exportPng(){
+              if (!latestResult) return;
+              const serializer = new XMLSerializer();
+              const source = serializer.serializeToString(svg);
+              const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const img = new Image();
+              img.onload = function(){
+                  const canvas = document.createElement('canvas');
+                  const viewBox = svg.viewBox.baseVal;
+                  canvas.width = viewBox.width;
+                  canvas.height = viewBox.height;
+                  const ctx = canvas.getContext('2d');
+                  ctx.fillStyle = '#ffffff';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0);
+                  URL.revokeObjectURL(url);
+                  const a = document.createElement('a');
+                  const stamp = new Date().toISOString().replace(/[:T]/g,'-').slice(0,19);
+                  a.href = canvas.toDataURL('image/png');
+                  a.download = 'history-analysis-' + stamp + '.png';
+                  a.click();
+              };
+              img.src = url;
+          }
+
+          csvFileInput.addEventListener('change', function(){
+              const file = csvFileInput.files && csvFileInput.files[0];
+              fileNameEl.textContent = file ? file.name : '未选择任何文件';
+              clearChart();
+              emptyHintEl.textContent = '请选择日志文件并输入时间范围后开始分析。';
+              inspectSelectedFile();
+          });
+
+          btnNormal.addEventListener('click', function(){ setView('normal_group'); });
+          btnWireless.addEventListener('click', function(){ setView('wireless_group'); });
+          analyzeBtn.addEventListener('click', analyze);
+          exportBtn.addEventListener('click', exportPng);
+          zoomPlusBtn.addEventListener('click', function(){
+              applyZoomLevel(zoomLevel + 1);
+          });
+          zoomMinusBtn.addEventListener('click', function(){
+              applyZoomLevel(zoomLevel - 1);
+          });
+          zoomSlider.addEventListener('input', function(){
+              applyZoomLevel(Number(zoomSlider.value));
+          });
+
+          window.addEventListener('mouseup', function(){
+              stopPan();
+          });
+
+          svg.addEventListener('mousedown', function(ev){
+              if (ev.button !== 0) return;
+              if (!latestResult || zoomLevel <= 0) return;
+              panState.dragging = true;
+              panState.lastClientX = ev.clientX;
+              tooltip.style.display = 'none';
+              if (chartWrap) chartWrap.classList.add('panning');
+              ev.preventDefault();
+          });
+
+          window.addEventListener('mousemove', function(ev){
+              if (!panState.dragging) return;
+              const deltaX = ev.clientX - panState.lastClientX;
+              if (deltaX === 0) return;
+              panState.lastClientX = ev.clientX;
+              tooltip.style.display = 'none';
+              panXAxisByPixels(deltaX);
+          });
+
+          window.addEventListener('mouseleave', function(){
+              stopPan();
+          });
+
+          renderDeviceChoices();
+          setChartButtonsDisabled(true);
+      })();
+    </script>
+  </body>
+</html>

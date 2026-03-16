@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>整车网络监控</title>
+
+    <link rel="icon" href="data:,">
+
+    <script src="/static/socket.io.min.js"></script>
+    <script src="/static/cytoscape.min.js"></script>
+    <script src="/static/cytoscape-cose-bilkent.js"></script>
+    <link rel="icon" href="{{ url_for('static',filename='favicon.ico') }}" type="image/x-icon">
+
+    <style>
+        body{ margin:0; background:#F5F7FA; font-family:Arial, sans-serif; }
+        #toolbar{
+            height:40px; line-height:40px; padding:0 16px; font-size:18px; color:#2C3E50;
+            background:#C9D2DF; border-bottom:1px solid #B8C2CF; box-sizing:border-box;
+            display:flex; align-items:center; justify-content:space-between; gap:16px;
+        }
+        #toolbar-left{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #toolbar-right{ display:flex; align-items:center; gap:10px; }
+        #conn-state{ font-weight:600; }
+        #conn-state.live{ color:#059669; }
+        #conn-state.stale{ color:#D97706; }
+        #conn-state.disconnected{ color:#DC2626; }
+        .toolbar-btn{
+            height:28px; line-height:26px; border:1px solid #94A3B8; background:white; color:#1F2937;
+            border-radius:6px; padding:0 10px; font-size:18px; text-decoration:none; cursor:pointer;
+        }
+        .toolbar-btn:hover{ background:#F8FAFC; }
+        #cy{ width:100%; height:calc(100vh - 40px); }
+    </style>
+</head>
+<body>
+<div id="toolbar">
+    <div id="toolbar-left">
+        最后更新：<span id="update-time">{{ timestamp }}</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        刷新模式：<span id="work-mode">{{ mode }}</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        连接状态：<span id="conn-state">实时刷新</span>
+    </div>
+    <div id="toolbar-right">
+        {% if history_analysis_enabled %}
+        <a class="toolbar-btn" href="/history-analysis" target="_blank" rel="noopener noreferrer">日志分析</a>
+        {% endif %}
+    </div>
+</div>
+<div id="cy"></div>
+</body>
+</html>
+
+<script>
+    cytoscape.use(cytoscapeCoseBilkent);
+
+    var socket = io({
+        transports: ["polling"],
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 4000
+    });
+
+    var nodes = {{ nodes | safe }};
+    var edges = {{ edges | safe }};
+    var STALE_TIMEOUT_MS = {{ stale_timeout_ms }};
+    var lastDataAt = Date.now();
+    var pageState = "live";
+
+    function formatNodeLabel(data){
+        if(data.name && data.ip){ return data.name + "\n" + data.ip; }
+        return "";
+    }
+
+    function formatLatency(value){
+        if(typeof value === "number"){ return value.toFixed(2) + " ms"; }
+        return "--";
+    }
+
+    function ensureNodeData(n){
+        if(!n.data.label){ n.data.label = formatNodeLabel(n.data); }
+        if(!n.data.icon && n.data.name){ n.data.icon = "/static/icons/" + n.data.name + ".svg"; }
+    }
+
+    function ensureEdgeData(e){
+        if(e.data.latency_label === undefined){ e.data.latency_label = formatLatency(e.data.latency); }
+    }
+
+    function setPageState(state){
+        pageState = state;
+        var el = document.getElementById("conn-state");
+        if(!el) return;
+        el.classList.remove("live", "stale", "disconnected");
+        el.classList.add(state);
+        if(state === "live"){
+            el.innerText = "实时刷新";
+            cy.elements().style("opacity", 1);
+        }else if(state === "stale"){
+            el.innerText = "数据过期";
+            cy.nodes().style("opacity", 0.55);
+            cy.edges().style("opacity", 0.35);
+        }else if(state === "disconnected"){
+            el.innerText = "服务断开";
+            cy.nodes().style("opacity", 0.55);
+            cy.edges().style("opacity", 0.35);
+        }
+    }
+
+    function markDataFresh(){
+        lastDataAt = Date.now();
+        setPageState("live");
+    }
+
+    nodes.forEach(ensureNodeData);
+    edges.forEach(ensureEdgeData);
+
+    var cy = cytoscape({
+        container: document.getElementById("cy"),
+        elements: { nodes: nodes, edges: edges },
+        style: [
+            { selector: "node", style: {
+                "label": "data(label)", "text-valign": "bottom", "text-halign": "center", "text-margin-y": 5,
+                "text-wrap": "wrap", "text-max-width": 80, "font-size": "9px", "color": "#1F2937",
+                "width": 56, "height": 56, "background-color": "#10B981",
+                "background-image": "data(icon)", "background-fit": "none", "background-clip": "none",
+                "background-width": "75%", "background-height": "75%",
+                "background-position-x": "50%", "background-position-y": "50%"
+            }},
+            { selector: "node[role = 'deploy']", style: { "width": 72, "height": 72, "background-color": "#0EA5A4" } },
+            { selector: "node[status = 'offline']", style: { "background-color": "#9AA0A6", "opacity": 0.7 } },
+            { selector: "node[status = 'warning']", style: { "background-color": "#F5A623" } },
+            { selector: "node[status = 'critical']", style: { "background-color": "#E74C3C" } },
+            { selector: "edge", style: {
+                "label": "data(latency_label)", "curve-style": "bezier", "text-rotation": "autorotate",
+                "text-margin-y": -10, "width": 1.5, "line-color": "#10B981", "font-size": "9px"
+            }},
+            { selector: "edge[status = 'warning']", style: { "line-color": "#F5A623" } },
+            { selector: "edge[status = 'critical']", style: { "line-color": "#E74C3C" } },
+            { selector: "edge[status = 'offline']", style: { "line-color": "#9AA0A6", "line-style": "dashed", "opacity": 0.6 } }
+        ],
+        layout: { name: "cose-bilkent", animate: false, nodeRepulsion: 4500, idealEdgeLength: 120 }
+    });
+
+    function applyNode(source){
+        var node = cy.getElementById(source.id);
+        if(!node || node.length === 0) return;
+        if(source.name !== undefined) node.data("name", source.name);
+        if(source.ip !== undefined) node.data("ip", source.ip);
+        if(source.status !== undefined) node.data("status", source.status);
+        if(source.role !== undefined) node.data("role", source.role);
+        node.data("label", formatNodeLabel(node.data()));
+    }
+
+    function applyEdge(source){
+        var edge = cy.getElementById(source.id);
+        if(!edge || edge.length === 0) return;
+        if(source.status !== undefined) edge.data("status", source.status);
+        if(typeof source.latency === "number"){
+            edge.data("latency", source.latency);
+            edge.data("latency_label", formatLatency(source.latency));
+        } else if(source.status === "offline") {
+            edge.data("latency", null);
+            edge.data("latency_label", "--");
+        }
+    }
+
+    cy.on("dragfree", "node", function(){
+        var pos = {};
+        cy.nodes().forEach(function(n){ pos[n.id()] = n.position(); });
+        localStorage.setItem("topology_positions", JSON.stringify(pos));
+    });
+
+    var saved = localStorage.getItem("topology_positions");
+    if(saved){
+        try{
+            var pos = JSON.parse(saved);
+            cy.nodes().forEach(function(n){ if(pos[n.id()]){ n.position(pos[n.id()]); } });
+        }catch(err){ console.warn("restore positions failed:", err); }
+    }
+
+    socket.on("connect", function(){ console.log("socket connected"); setPageState("live"); });
+    socket.on("disconnect", function(){ console.log("socket disconnected"); setPageState("disconnected"); });
+    socket.on("snapshot", function(data){
+        if(!data) return;
+        markDataFresh();
+        if(data.nodes){ data.nodes.forEach(function(n){ applyNode(n.data ? n.data : n); }); }
+        if(data.edges){ data.edges.forEach(function(e){ applyEdge(e.data ? e.data : e); }); }
+        if(data.timestamp){ document.getElementById("update-time").innerText = data.timestamp; }
+        if(data.mode){ document.getElementById("work-mode").innerText = data.mode; }
+        cy.style().update();
+    });
+    socket.on("update", function(data){
+        if(!data) return;
+        markDataFresh();
+        if(data.nodes){ data.nodes.forEach(function(n){ applyNode(n.data ? n.data : n); }); }
+        if(data.edges){ data.edges.forEach(function(e){ applyEdge(e.data ? e.data : e); }); }
+        if(data.timestamp){ document.getElementById("update-time").innerText = data.timestamp; }
+        if(data.mode){ document.getElementById("work-mode").innerText = data.mode; }
+        cy.style().update();
+    });
+
+    setInterval(function(){
+        if(pageState === "disconnected"){ return; }
+        if(Date.now() - lastDataAt > STALE_TIMEOUT_MS){ setPageState("stale"); }
+    }, 1000);
+</script>

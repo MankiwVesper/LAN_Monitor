@@ -1,0 +1,1 @@
+pyinstaller --name LAN --onedir --add-data "config.json:." --add-data "templates:templates" --add-data "static:static" app.py
