@@ -34,19 +34,58 @@ def load_config_file(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        raise RuntimeError(f"配置文件加载失败：未找到配置文件 {config_path}。")
-    except json.decoder.JSONDecodeError as e:
+        raise FileNotFoundError(f"配置文件加载失败：未找到配置文件 {config_path}。")
+    except json.JSONDecodeError as e:
         raise RuntimeError(f"配置文件加载失败：config.json 不是合法的JSON格式。"
-                          f"第 {e.lineno} 行，第 {e.colno} 列附件存在语法错误。")
+                          f"第 {e.lineno} 行，第 {e.colno} 列附近存在语法错误。")
     except OSError as e:
         raise RuntimeError(f"配置文件加载失败：无法读取配置文件。{e}")
 
 
+def validate_config(cfg:dict):
+    if not isinstance(cfg, dict):
+        raise RuntimeError("配置文件加载失败：顶层结构必须是JSON对象。")
+                           
+    required_keys = [
+        "service_host",
+        "service_port",
+        "deploy_device",
+        "devices",
+    ]
+    
+    for key in required_keys:
+        if key not in cfg:
+            raise RuntimeError(f"配置文件加载失败，缺少必要配置项:{key}。")
+    
+    if not isinstance(cfg["service_host"], str) or not cfg["service_host"].strip():
+        raise RuntimeError("配置文件加载失败：service_host 必须是非空字符串。")
+        
+    if not isinstance(cfg["service_port"], int):
+        raise RuntimeError("配置文件加载失败：service_port 必须是整数。")
+
+    if not isinstance(cfg["deploy_device"], dict) or len(cfg["deploy_device"]) != 1:
+        raise RuntimeError("配置文件加载失败：deploy_device 必须是仅有一个元素的字典。")
+    
+    if not isinstance(cfg["devices"], dict) or not cfg["devices"]:
+        raise RuntimeError("配置文件加载失败：devices 必须是非空字典。")
+        
+        
 app = Flask(__name__, template_folder=resource_path("templates"), static_folder=resource_path("static"))
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 CONFIG_PATH = resource_path("config.json")
-config = load_config_file(CONFIG_PATH)
+                           
+try:
+    config = load_config_file(CONFIG_PATH)
+    validate_config(config)
+except RuntimeError as e:
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [ERROR] {e}")
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [INFO] 请修正 {CONFIG_PATH} 后重新启动程序。")
+    raise SystemExit(1)
+except FileNotFoundError as e:
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [ERROR] {e}")
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [INFO] 请检查配置文件路径后重新启动程序。")
+    raise SystemExit(1)
 
 SERVICE_HOST = config["service_host"]
 SERVICE_PORT = config["service_port"]
@@ -94,8 +133,9 @@ HISTORY_ANALYSIS_MAX_HOURS = int(HISTORY_ANALYSIS_CONFIG.get("max_hours", 24))
 HISTORY_ANALYSIS_MAX_FILE_SIZE_MB = int(
     HISTORY_ANALYSIS_CONFIG.get("max_file_size_mb", LATENCY_LOG_MAX_FILE_SIZE_MB)
 )
+HISTORY_ANALYSIS_MAX_ROWS = int(HISTORY_ANALYSIS_CONFIG.get("max_rows", 250000))
 HISTORY_ANALYSIS_WIRELESS_DEVICE_NAMES = set(
-    HISTORY_ANALYSIS_CONFIG.get("wireless_device_names", ["主机7-无线"])
+    HISTORY_ANALYSIS_CONFIG.get("wireless_device_names", ["无人机-无线"])
 )
 
 CSV_HEADER = ["时间", "源IP", "源设备", "目标IP", "目标设备", "延迟(ms)", "状态"]
@@ -442,17 +482,17 @@ def init_latency_log():
             ensure_latency_log_header()
 
             if log_dir == candidate_dirs[0]:
-                print(f"{time.strftime(HISTORY_TIME_FORMAT)} [INFO] latency log enabled: {LATENCY_LOG_PATH}")
+                print(f"{time.strftime(HISTORY_TIME_FORMAT)} [INFO] 记录延时日志的功能开启: {LATENCY_LOG_PATH}")
             else:
-                print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] configured log dir is unavailable, fallback to: {LATENCY_LOG_PATH}")
+                print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] 配置文件中分配的日志目录不可用, 日志将保存到: {LATENCY_LOG_PATH}")
             return
         except Exception as e:
             last_error = e
-            print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] log dir unavailable: {log_dir}, error: {e}")
+            print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] 日志目录无法使用: {log_dir}, 错误原因: {e}")
 
     LATENCY_LOG_RUNTIME_ENABLED = False
     LATENCY_LOG_PATH = None
-    print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] latency log disabled, monitoring will continue running")
+    print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] 记录延时日志的功能关闭, 但是监控继续。")
     if last_error is not None:
         print(f"{time.strftime(HISTORY_TIME_FORMAT)} [WARN] last log init error: {last_error}")
 
@@ -560,7 +600,7 @@ def decode_csv_bytes(file_bytes: bytes) -> str:
             return file_bytes.decode(encoding)
         except UnicodeDecodeError:
             continue
-    raise ValueError("文件内容错误，请重新选择正确的文件。")
+    raise ValueError("E1:文件内容错误，请重新选择正确的文件。\n文件编码格式错误，解码出现异常。")
 
 
 def parse_history_csv(file_bytes: bytes):
@@ -568,14 +608,14 @@ def parse_history_csv(file_bytes: bytes):
     reader = csv.reader(io.StringIO(text))
     rows = list(reader)
     if not rows:
-        raise ValueError("文件内容错误，请重新选择正确的文件。")
+        raise ValueError("E2:文件内容错误，请重新选择正确的文件。\n文件内容为空。")
 
     header = rows[0]
     if header != CSV_HEADER:
-        raise ValueError("文件内容错误，请重新选择正确的文件。")
+        raise ValueError("E3:文件内容错误，请重新选择正确的文件。\n文件表头内容错误。")
 
     if len(rows) <= 1:
-        raise ValueError("文件内容错误，请重新选择正确的文件。")
+        raise ValueError("E4:文件内容错误，请重新选择正确的文件。\n文件中没有有效数据。")
 
     parsed_rows = []
     valid_device_names = set(devices.values())
@@ -583,23 +623,23 @@ def parse_history_csv(file_bytes: bytes):
         if not row or not any(str(cell).strip() for cell in row):
             continue
         if len(row) != len(CSV_HEADER):
-            raise ValueError("文件内容错误，请重新选择正确的文件。")
+            raise ValueError(f"E5:文件内容错误，请重新选择正确的文件。\n第{index}行的内容与标题长度不匹配。")
 
         time_str, src_ip, src_name, target_ip, target_name, latency_str, status = [str(cell).strip() for cell in row]
         try:
             row_time = parse_history_datetime(time_str)
-        except Exception:
-            raise ValueError("文件内容错误，请重新选择正确的文件。") from None
+        except Exception as e:
+            raise ValueError(f"E6:文件内容错误，请重新选择正确的文件。\n时间戳{time_str}不符合格式 {HISTORY_TIME_FORMAT} 要求。") from None
 
         if target_name not in valid_device_names:
-            raise ValueError("文件内容错误，请重新选择正确的文件。")
+            raise ValueError(f"E7:文件内容错误，请重新选择正确的文件。\n{target_name}不在目标主机{valid_device_names}范围内。")
 
         latency_value = None
         if latency_str != "":
             try:
                 latency_value = float(latency_str)
             except Exception:
-                raise ValueError("文件内容错误，请重新选择正确的文件。") from None
+                raise ValueError(f"E8:文件内容错误，请重新选择正确的文件。\n延迟值 {latency_str} 转换为浮点数时错误。") from None
 
         parsed_rows.append({
             "time": row_time,
@@ -614,8 +654,28 @@ def parse_history_csv(file_bytes: bytes):
         })
 
     if not parsed_rows:
-        raise ValueError("文件内容错误，请重新选择正确的文件。")
+        raise ValueError("E9:文件内容错误，请重新选择正确的文件。\n解析数据时出现错误。")
     return parsed_rows
+
+
+def count_history_rows(rows, start_time, end_time, view_type, selected_devices):
+    groups = get_history_view_groups()
+    allowed_devices = set(groups.get(view_type, []))
+    if not allowed_devices:
+        return 0
+
+    if not selected_devices:
+        raise ValueError("E1:请至少选择一条链路进行绘图。")
+
+    selected_set = {name for name in selected_devices if name in allowed_devices}
+    if not selected_set:
+        raise ValueError("E2:请至少选择一条链路进行绘图。")
+
+    count = 0
+    for row in rows:
+        if start_time <= row["time"] <= end_time and row["target_name"] in selected_set:
+            count += 1
+    return count
 
 
 def build_history_series(rows, start_time, end_time, view_type, selected_devices):
@@ -625,11 +685,11 @@ def build_history_series(rows, start_time, end_time, view_type, selected_devices
         return []
 
     if not selected_devices:
-        raise ValueError("请至少选择一条链路进行绘图。")
+        raise ValueError("E3:请至少选择一条链路进行绘图。")
 
     selected_set = [name for name in selected_devices if name in allowed_devices]
     if not selected_set:
-        raise ValueError("请至少选择一条链路进行绘图。")
+        raise ValueError("E4:请至少选择一条链路进行绘图。")
 
     filtered = [
         row for row in rows
@@ -655,7 +715,7 @@ def build_history_series(rows, start_time, end_time, view_type, selected_devices
 
 def get_history_time_range(rows):
     if not rows:
-        raise ValueError("文件内容错误，请重新选择正确的文件。")
+        raise ValueError(f"E10:文件内容错误，请重新选择正确的文件。/n获取数据中的时间戳时出现异常。")
     min_time = min(row["time"] for row in rows)
     max_time = max(row["time"] for row in rows)
     return {
@@ -750,7 +810,7 @@ def history_analysis_page():
 @app.route("/api/history-analysis/inspect", methods=["POST"])
 def history_analysis_inspect():
     if not HISTORY_ANALYSIS_ENABLED:
-        return jsonify({"ok": False, "message": "日志分析功能未启用。"}), 400
+        return jsonify({"ok": False, "message": "历史分析功能未启用。"}), 400
 
     file_storage = request.files.get("file")
     if file_storage is None or not (file_storage.filename or "").strip():
@@ -779,11 +839,11 @@ def history_analysis_inspect():
 @app.route("/api/history-analysis/analyze", methods=["POST"])
 def history_analysis_analyze():
     if not HISTORY_ANALYSIS_ENABLED:
-        return jsonify({"ok": False, "message": "日志分析功能未启用。"}), 400
+        return jsonify({"ok": False, "message": "历史分析功能未启用。"}), 400
 
     file_storage = request.files.get("file")
     if file_storage is None or not (file_storage.filename or "").strip():
-        return jsonify({"ok": False, "message": "请选择需要分析的CSV日志文件。"}), 400
+        return jsonify({"ok": False, "message": "请选择需要分析的 CSV 文件。"}), 400
 
     is_valid, message = validate_history_file(file_storage)
     if not is_valid:
@@ -801,7 +861,7 @@ def history_analysis_analyze():
         return jsonify({"ok": False, "message": "时间范围输入错误，请检查后重新输入。"}), 400
 
     if start_time >= end_time:
-        return jsonify({"ok": False, "message": "开始时间晚于截止时间，请重新输入。"}), 400
+        return jsonify({"ok": False, "message": "时间范围输入错误，请检查后重新输入。"}), 400
 
     hours_span = (end_time - start_time).total_seconds() / 3600.0
     if hours_span > HISTORY_ANALYSIS_MAX_HOURS:
@@ -818,26 +878,20 @@ def history_analysis_analyze():
     try:
         file_bytes = file_storage.read()
         rows = parse_history_csv(file_bytes)
+        matched_row_count = count_history_rows(rows, start_time, end_time, view_type, selected_devices)
+        if matched_row_count > HISTORY_ANALYSIS_MAX_ROWS:
+            return jsonify({
+                "ok": False,
+                "message": f"当前选择的时间范围内日志记录条数过多，已超过上限（{HISTORY_ANALYSIS_MAX_ROWS} 行）。请缩小分析时间范围后重试。"
+            }), 400
         series = build_history_series(rows, start_time, end_time, view_type, selected_devices)
     except ValueError as e:
         return jsonify({"ok": False, "message": str(e)}), 400
     except Exception as e:
-        return jsonify({"ok": False, "message": f"日志分析失败：{e}"}), 500
+        return jsonify({"ok": False, "message": f"历史分析失败：{e}"}), 500
 
     if not series:
         return jsonify({"ok": False, "message": "所选时间段内没有可用于绘图的数据。"}), 400
-    
-    has_valid_latency = any(
-        point[1] is not None
-        for item in series
-        for point in item.get("points", [])
-    )
-    
-    if not has_valid_latency:
-        return jsonify({
-            "ok": False,
-            "message": "所选时间段内节点全部离线，无有效数据！"
-        }), 400
 
     return jsonify({
         "ok": True,
@@ -892,7 +946,7 @@ def ensure_service_port_available(host, port):
         f"程序启动失败：端口{port}已被使用，请先停止占用该端口的程序，或修改软件配置文件中的端口号之后重试。"
     ) from last_error
 
-    
+
 if __name__ == "__main__":
     try:
         ensure_service_port_available(SERVICE_HOST, SERVICE_PORT)
