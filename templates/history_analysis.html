@@ -191,7 +191,7 @@
         margin-top: 2px;
         font-size: 12px;
         line-height: 1.4;
-        color: #64748b;
+        color: #ff7f50;
       }
 
       .view-switch {
@@ -428,8 +428,6 @@
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
       }
 
-
-
       .zoom-buttons {
         display: flex;
         gap: 10px;
@@ -505,7 +503,6 @@
         margin: 0;
         cursor: pointer;
       }
-
 
       .chart-wrap.pan-enabled {
         cursor: grab;
@@ -868,6 +865,25 @@
               else step = 10;
               return step * power;
           }
+      
+          function getMinMax(values){
+              let min = Infinity;
+              let max = -Infinity;
+            
+              for (let i = 0; i < values.length; i++) {
+                  const v = values[i];
+                  if (typeof v !== 'number' || Number.isNaN(v)) continue;
+                  if (v < min) min = v;
+                  if (v > max) max = v;
+              }
+              
+              if (min === Infinity || max === -Infinity)
+                  {
+                    return null;
+                  }
+            
+              return { min, max };
+          }
 
           function formatTimeTickParts(ts){
               const d = new Date(ts);
@@ -938,16 +954,19 @@
 
               let minY = null;
               let maxY = null;
+            
+              const visibleWindowRange = getMinMax(visibleWindowValidPoints);
+              const allWindowRange = getMinMax(allWindowValidPoints);
 
-              if (visibleWindowValidPoints.length) {
-                  minY = Math.min.apply(null, visibleWindowValidPoints);
-                  maxY = Math.max.apply(null, visibleWindowValidPoints);
+              if (visibleWindowRange) {
+                  minY = visibleWindowRange.min;
+                  maxY = visibleWindowRange.max;
               } else if (chartState.lastMinY !== null && chartState.lastMaxY !== null) {
                   minY = chartState.lastMinY;
                   maxY = chartState.lastMaxY;
-              } else if (allWindowValidPoints.length) {
-                  minY = Math.min.apply(null, allWindowValidPoints);
-                  maxY = Math.max.apply(null, allWindowValidPoints);
+              } else if (allWindowRange) {
+                  minY = allWindowRange.min;
+                  maxY = allWindowRange.max;
               } else {
                   minY = 0;
                   maxY = 1;
@@ -1268,7 +1287,7 @@
               }
           }
 
-          async function exportPng(){
+          async function exportPng11(){
               if (!latestResult) return;
               const serializer = new XMLSerializer();
               const source = serializer.serializeToString(svg);
@@ -1278,12 +1297,57 @@
               img.onload = function(){
                   const canvas = document.createElement('canvas');
                   const viewBox = svg.viewBox.baseVal;
-                  canvas.width = viewBox.width;
-                  canvas.height = viewBox.height;
+                  const scale = 3;
+                  const legendHeight = legendEl.children.length ? 48 : 0;
+                  canvas.width = viewBox.width * scale;
+                  canvas.height = (viewBox.height + legendHeight) * scale;
                   const ctx = canvas.getContext('2d');
+                  ctx.scale(scale, scale);
                   ctx.fillStyle = '#ffffff';
-                  ctx.fillRect(0, 0, canvas.width, canvas.height);
-                  ctx.drawImage(img, 0, 0);
+                  ctx.fillRect(0, 0, viewBox.width, viewBox.height + legendHeight);
+                
+                  if (legendEl.children.length) {
+                      const legendItems = Array.from(legendEl.children).map(function(item){
+                          const lineEl = item.querySelector('.legend-line');
+                          const textEl = item.querySelector('span:last-child');
+                          const color = lineEl ? lineEl.style.background : '#000000';
+                          const text = textEl ? textEl.textContent : '';
+                          return { color, text };
+                      });
+                      
+                      ctx.font = '13px Arial';
+                      ctx.textBaseline = 'middle';
+                    
+                      // 每个图例项的宽度：线段20 + 线与字间距8 + 文字宽度 + 项间距24
+                      const itemWidths = legendItems.map(function(item){ return 20 + 8 + ctx.measureText(item.text).width + 24});
+                    
+                      let = totalWidth = 0;
+                      for (let i = 0; i < itemWidths.length; i++) {
+                          totalWidth += itemWidths[i];
+                      }
+                      if (itemWidths.length > 0) { totalWidth -= 24 }; // 最后一个图例项不需要额外的尾部间距
+                    
+                      let x = Math.max(16, (viewBox.witdh - totalWidth) / 2);
+                      const y = 24;
+                    
+                      legendItems.forEach(function(item, index){
+                           // 画色块/线
+                          ctx.strokeStyle = item.color;
+                          ctx.lineWidth = 3;
+                          ctx.beginPath();
+                          ctx.moveTo(x, y);
+                          ctx.lineTo(x + 20, y);
+                          ctx.stroke();
+                        
+                          // 画文字
+                          ctx.fillStyle = '#334155';
+                          ctx.fillText(item.text, x + 28, y);
+                          
+                          // 计算下一个图例位置
+                          x += itemWidths[index];
+                      });
+                  }
+                  ctx.drawImage(img, 0, legendHeight, viewBox.width, viewBox.height);
                   URL.revokeObjectURL(url);
                   const a = document.createElement('a');
                   const stamp = new Date().toISOString().replace(/[:T]/g,'-').slice(0,19);
@@ -1292,6 +1356,122 @@
                   a.click();
               };
               img.src = url;
+          }
+          
+          async function exportPng(){
+              if (!latestResult) return;
+              
+              const originalViewBox = svg.viewBox.baseVal;
+              const baseWidth = originalViewBox.width;
+              const baseHeight = originalViewBox.height;
+              const legendItems = Array.from(legendEl.children);
+              const legendHeight = legendItems.length ? 56 : 0;
+              const exportWidth = baseWidth;
+              const exportHeight = baseHeight + legendHeight;
+              
+              // 克隆当前 SVG
+              const exportSvg = svg.cloneNode(true);
+              exportSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+              exportSvg.setAttribute('width', exportWidth);
+              exportSvg.setAttribute('height', exportHeight);
+              exportSvg.setAttribute('viewBox', `0 0 ${exportWidth} ${exportHeight}`);
+            
+              // 背景白底
+              const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              bg.setAttribute('x', '0');bg.setAttribute('y', '0');
+              bg.setAttribute('width', String(exportWidth));
+              bg.setAttribute('height', String(exportHeight));
+              bg.setAttribute('fill', '#ffffff');
+              exportSvg.insertBefore(bg, exportSvg.firstChild);
+            
+              // 把原图整体下移，给顶部图例腾位置
+              const shiftedGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+              shiftedGroup.setAttribute('transform', `translate(0, ${legendHeight})`);
+              while (exportSvg.childNodes.length >1) {
+                shiftedGroup.appendChild(exportSvg.childNodes[1]);
+              }
+              exportSvg.appendChild(shiftedGroup);
+            
+              // 把图例画进导出 SVG 顶部
+              if (legendItems.length) {
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.font = '13px Arial';
+                
+                const parsedItems = legendItems.map(function(item){
+                  const lineEl = item.querySelector('.legend-line');
+                  const textEl = item.querySelector('span:last-child');
+                  const color = lineEl ? (lineEl.style.background || '#000000') : '#000000';
+                  const text = textEl ? textEl.textContent.trim() : '';
+                  const textWidth = tempCtx.measureText(text).width;
+                  const itemWidth = 20 + 8 + textWidth + 24; // 线20 + 间距8 + 文字 + 项间距24
+                  
+                  return { color, text, textWidth, itemWidth };
+                });
+
+                let totalWidth = 0;
+                for (let i = 0; i <parsedItems.length; i++) {
+                  totalWidth += parsedItems[i].itemWidth;
+                }
+                
+                if (parsedItems.length >0) {
+                  totalWidth -= 24; // 最后一个不需要尾部间距
+                }
+                
+  
+                let x = Math.max(16, (exportWidth - totalWidth) / 2);
+                const y = legendHeight / 2;
+    
+                parsedItems.forEach(function(item){
+                  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                  line.setAttribute('x1', String(x));
+                  line.setAttribute('y1', String(y));
+                  line.setAttribute('x2', String(x + 20));
+                  line.setAttribute('y2', String(y));
+                  line.setAttribute('stroke', item.color);
+                  line.setAttribute('stroke-width', '3');
+                  line.setAttribute('stroke-linecap', 'round');
+                  exportSvg.appendChild(line);
+                  
+                  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                  text.setAttribute('x', String(x + 28));
+                  text.setAttribute('y', String(y + 4));
+                  text.setAttribute('font-size', '13');
+                  text.setAttribute('fill', '#334155');
+                  text.textContent = item.text;
+                  exportSvg.appendChild(text);
+                  
+                  x += item.itemWidth;
+                });
+              }
+            
+            const serializer = new XMLSerializer();
+            const source = serializer.serializeToString(exportSvg);
+            const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            
+            img.onload = function(){
+              const canvas = document.createElement('canvas');
+              const scale = 3; // 导出清晰度倍率
+              canvas.width = exportWidth * scale;
+              canvas.height = exportHeight * scale;
+              
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              
+              URL.revokeObjectURL(url);
+              
+              const a = document.createElement('a');
+              const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+              a.href = canvas.toDataURL('image/png');
+              a.download = 'latency-analysis-' + stamp + '.png';
+              a.click();
+            };
+        
+            img.src = url;
           }
 
           csvFileInput.addEventListener('change', function(){
