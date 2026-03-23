@@ -9,6 +9,7 @@ import threading
 import time
 import sys
 import socket
+import subprocess
 
 from datetime import datetime
 from typing import Optional
@@ -27,6 +28,45 @@ from monitor import ping_host, ping_many
 def resource_path(relative_path):
     base_path = getattr(sys, "_MEIPASS", os.path.abspath("."))
     return os.path.join(base_path, relative_path)
+
+def get_local_ipv4_addresses():
+    ipv4s = set()
+    
+    # 方式1：优先使用 ip命令获取所有全局IPv4
+    try:
+        result = subprocess.run(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, check=True,)
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            # 典型格式：2: the0     inte 192.168.1.10/24 brd ...
+            if "inet" in parts:
+                idx = parts.index("inet")
+                ip_with_mask = parts[idx + 1]
+                ip = ip_with_mask.split("/")[0]
+                
+                if ip and not ip.startswith("127."):
+                    ipv4s.add(ip)
+    except Exception:
+        pass
+    
+    # 方式2：使用 socket 方式补充
+    try:
+        hostname = socket.gethostname()
+        for item in socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM):
+            ip = item[4][0]
+            if ip and not ip.startswith("127."):
+                ipv4s.add(ip)
+    except Exception:
+        pass
+
+    return sorted(ipv4s)
+
+
+def ensure_deploy_ip_matches_local_host():
+    deploy_ip = list(deploy_device.keys())[0]
+    local_ipv4s = get_local_ipv4_addresses()
+    
+    if deploy_ip not in local_ipv4s:
+        raise RuntimeError(f"服务启动失败：配置文件中的部署节点地址 {deploy_ip} 不是当前主机的IPv4地址 {local_ipv4s}，请检查！")
 
 
 def load_config_file(config_path):
@@ -949,6 +989,7 @@ def ensure_service_port_available(host, port):
 
 if __name__ == "__main__":
     try:
+        ensure_deploy_ip_matches_local_host()
         ensure_service_port_available(SERVICE_HOST, SERVICE_PORT)
         init_latency_log()
         warm_up_cache()
