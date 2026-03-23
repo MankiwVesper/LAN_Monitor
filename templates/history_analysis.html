@@ -548,7 +548,7 @@
               <label for="csvFile">日志文件</label>
               <div class="file-picker">
                   <div class="file-name" id="fileName">未选择任何文件</div>
-                  <label for="csvFile" class="file-btn">选择文件</label>
+                  <label for="csvFile" class="file-btn" id="fileBtn">选择文件</label>
                   <input type="file" id="csvFile" accept=".csv">
               </div>
               <div class="recommend">注：先复制日志文件，再选择日志副本进行分析</div>
@@ -1473,12 +1473,24 @@
         
             img.src = url;
           }
+      
+          const fileBtn = document.getElementById('fileBtn');
+          fileBtn.addEventListener('click', function(){
+              csvFileInput.value = '';
+          });
 
           csvFileInput.addEventListener('change', function(){
               const file = csvFileInput.files && csvFileInput.files[0];
               fileNameEl.textContent = file ? file.name : '未选择任何文件';
               clearChart();
               emptyHintEl.textContent = '请选择日志文件并输入时间范围后开始分析。';
+              
+              if (!file) {
+                startTimeInput.value = '';
+                endTimeInput.value = '';
+                return;
+              }
+            
               inspectSelectedFile();
           });
 
